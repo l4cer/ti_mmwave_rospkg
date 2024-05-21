@@ -1,0 +1,2 @@
+uniflash_sl.4.2.1.1562.run filter=lfs diff=lfs merge=lfs -text
+mmwave_sdk_02_01_00_04-Linux-x86-Install.bin filter=lfs diff=lfs merge=lfs -text
