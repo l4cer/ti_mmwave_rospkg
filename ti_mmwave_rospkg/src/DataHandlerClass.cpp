@@ -45,6 +45,7 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (mmWaveCloudType,
 DataUARTHandler::DataUARTHandler(ros::NodeHandle* nh) : currentBufp(&pingPongBuffers[0]) , nextBufp(&pingPongBuffers[1]) {
     DataUARTHandler_pub = nh->advertise<sensor_msgs::PointCloud2>("/ti_mmwave/radar_scan_pcl", 100);
     radar_scan_pub = nh->advertise<ti_mmwave_rospkg::RadarScan>("/ti_mmwave/radar_scan", 100);
+    // heatmap_pub = nh->advertise<ti_mmwave_rospkg::Heatmap>("/ti_mmwave/heatmap", 100);
     radar_occupancy_pub = nh->advertise<ti_mmwave_rospkg::RadarOccupancy>("/ti_mmwave/radar_occupancy", 100);
     marker_pub = nh->advertise<visualization_msgs::Marker>("/ti_mmwave/radar_scan_markers", 100);
     maxAllowedElevationAngleDeg = 90; // Use max angle if none specified
@@ -314,12 +315,10 @@ void *DataUARTHandler::sortIncomingData( void )
     
     while(ros::ok())
     {
-
         switch(sorterState)
         {
-            
         case READ_HEADER:
-            
+
             //init variables
             mmwData.numObjOut = 0;
 
@@ -380,11 +379,14 @@ void *DataUARTHandler::sortIncomingData( void )
             }
 
             //if packet lengths do not match, throw it away
-            if(mmwData.header.totalPacketLen == currentBufp->size() )
+            if(mmwData.header.totalPacketLen <= currentBufp->size() )
             {
                sorterState = CHECK_TLV_TYPE;
             }
-            else sorterState = SWAP_BUFFERS;
+            else
+            {
+                sorterState = SWAP_BUFFERS;
+            }
 
             break;
             
@@ -419,7 +421,7 @@ void *DataUARTHandler::sortIncomingData( void )
             RScan->width = mmwData.numObjOut;
             RScan->is_dense = 1;
             RScan->points.resize(RScan->width * RScan->height);
-            
+
             // Calculate ratios for max desired elevation and azimuth angles
             if ((maxAllowedElevationAngleDeg >= 0) && (maxAllowedElevationAngleDeg < 90)) {
                 maxElevationAngleRatioSquared = tan(maxAllowedElevationAngleDeg * M_PI / 180.0);
@@ -602,16 +604,16 @@ void *DataUARTHandler::sortIncomingData( void )
             memcpy( &mmwData.occupancy.state, &currentBufp->at(currentDatap), sizeof(mmwData.occupancy.state));
             currentDatap += ( sizeof(mmwData.occupancy.state) );
 	    
-	    radaroccupancy.state = mmwData.occupancy.state;
+            radaroccupancy.state = mmwData.occupancy.state;
 
-	    if (radaroccupancy.state == 0){
-	      // ROS_INFO("Area is clear!"); 
-	    }
-	    else{
-	      // ROS_INFO("Area is OCCUPIED!");
-	    }
+            if (radaroccupancy.state == 0){
+            // ROS_INFO("Area is clear!"); 
+            }
+            else{
+            // ROS_INFO("Area is OCCUPIED!");
+            }
 
-	    radar_occupancy_pub.publish(radaroccupancy);
+            radar_occupancy_pub.publish(radaroccupancy);
 	    
             sorterState = CHECK_TLV_TYPE;
 
@@ -620,6 +622,15 @@ void *DataUARTHandler::sortIncomingData( void )
         case READ_LOG_MAG_RANGE:
             {
 
+              i = 0;
+            
+              while (i++ < tlvLen - 1)
+              {
+                     //ROS_INFO("DataUARTHandler Sort Thread : Parsing Range Profile i=%d and tlvLen = %u", i, tlvLen);
+              }
+            
+              currentDatap += tlvLen;
+            
               sorterState = CHECK_TLV_TYPE;
             }
             
@@ -649,7 +660,7 @@ void *DataUARTHandler::sortIncomingData( void )
             
               while (i++ < tlvLen - 1)
               {
-                     //ROS_INFO("DataUARTHandler Sort Thread : Parsing Azimuth Profile i=%d and tlvLen = %u", i, tlvLen);
+                    // ROS_INFO("DataUARTHandler Sort Thread : Parsing Azimuth Profile i=%d and tlvLen = %u", i, tlvLen);
               }
             
               currentDatap += tlvLen;
@@ -683,7 +694,7 @@ void *DataUARTHandler::sortIncomingData( void )
             
               while (i++ < tlvLen - 1)
               {
-                     //ROS_INFO("DataUARTHandler Sort Thread : Parsing Stats Profile i=%d and tlvLen = %u", i, tlvLen);
+                    // ROS_INFO("DataUARTHandler Sort Thread : Parsing Stats Profile i=%d and tlvLen = %u", i, tlvLen);
               }
             
               currentDatap += tlvLen;
@@ -695,7 +706,7 @@ void *DataUARTHandler::sortIncomingData( void )
         
         case CHECK_TLV_TYPE:
         
-            //ROS_INFO("DataUARTHandler Sort Thread : tlvCount = %d, numTLV = %d", tlvCount, mmwData.header.numTLVs);
+            // ROS_INFO("DataUARTHandler Sort Thread : tlvCount = %d, numTLV = %d", tlvCount, mmwData.header.numTLVs);
         
             if(tlvCount++ >= mmwData.header.numTLVs)  // Done parsing all received TLV sections
             {
@@ -743,15 +754,15 @@ void *DataUARTHandler::sortIncomingData( void )
                 memcpy( &tlvType, &currentBufp->at(currentDatap), sizeof(tlvType));
                 currentDatap += ( sizeof(tlvType) );
                 
-                //ROS_INFO("DataUARTHandler Sort Thread : sizeof(tlvType) = %d", sizeof(tlvType));
+                // ROS_INFO("DataUARTHandler Sort Thread : sizeof(tlvType) = %d", int(sizeof(tlvType)));
             
                 //get tlvLen (32 bits) & remove from queue
                 memcpy( &tlvLen, &currentBufp->at(currentDatap), sizeof(tlvLen));
                 currentDatap += ( sizeof(tlvLen) );
                 
-                //ROS_INFO("DataUARTHandler Sort Thread : sizeof(tlvLen) = %d", sizeof(tlvLen));
+                // ROS_INFO("DataUARTHandler Sort Thread : sizeof(tlvLen) = %d", sizeof(tlvLen));
                 
-                //ROS_INFO("DataUARTHandler Sort Thread : tlvType = %d, tlvLen = %d", (int) tlvType, tlvLen);
+                // ROS_INFO("DataUARTHandler Sort Thread : tlvType = %d, tlvLen = %d", (int) tlvType, tlvLen);
             
                 switch(tlvType)
                 {
@@ -760,47 +771,47 @@ void *DataUARTHandler::sortIncomingData( void )
                     break;
                 
                 case MMWDEMO_OUTPUT_MSG_DETECTED_POINTS:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Object TLV");
+                    // ROS_INFO("DataUARTHandler Sort Thread : Object TLV");
                     sorterState = READ_OBJ_STRUCT;
                     break;
                 
                 case MMWDEMO_OUTPUT_MSG_RANGE_PROFILE:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Range TLV");
+                    // ROS_INFO("DataUARTHandler Sort Thread : Range TLV");
                     sorterState = READ_LOG_MAG_RANGE;
                     break;
                 
                 case MMWDEMO_OUTPUT_MSG_NOISE_PROFILE:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Noise TLV");
+                    // ROS_INFO("DataUARTHandler Sort Thread : Noise TLV");
                     sorterState = READ_NOISE;
                     break;
                 
                 case MMWDEMO_OUTPUT_MSG_AZIMUTH_STATIC_HEAT_MAP:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Azimuth Heat TLV");
+                    // ROS_INFO("DataUARTHandler Sort Thread : Azimuth Heat TLV");
                     sorterState = READ_AZIMUTH;
                     break;
                 
                 case MMWDEMO_OUTPUT_MSG_RANGE_DOPPLER_HEAT_MAP:
-                    //ROS_INFO("DataUARTHandler Sort Thread : R/D Heat TLV");
+                    // ROS_INFO("DataUARTHandler Sort Thread : R/D Heat TLV");
                     sorterState = READ_DOPPLER;
                     break;
                 
                 case MMWDEMO_OUTPUT_MSG_STATS:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Stats TLV");
+                    // ROS_INFO("DataUARTHandler Sort Thread : Stats TLV");
                     sorterState = READ_STATS;
                     break;
                 
                 case MMWDEMO_OUTPUT_MSG_DETECTED_POINTS_SIDE_INFO:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Side info TLV");
+                    // ROS_INFO("DataUARTHandler Sort Thread : Side info TLV");
                     sorterState = READ_SIDE_INFO;
                     break;
 
                 case MMWDEMO_OUTPUT_MSG_MAX:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Header TLV");
+                    // ROS_INFO("DataUARTHandler Sort Thread : Header TLV");
                     sorterState = READ_HEADER;
                     break;
 
                 case MMWDEMO_OUTPUT_MSG_OCCUPANCY_STATE_MACHINE:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Occupancy State Machine TLV");
+                    // ROS_INFO("DataUARTHandler Sort Thread : Occupancy State Machine TLV");
                     sorterState = READ_OCCUPANCY;
                     break;
                 
@@ -808,9 +819,9 @@ void *DataUARTHandler::sortIncomingData( void )
                 }
             }
             
-        break;
-            
-       case SWAP_BUFFERS:
+            break;
+
+        case SWAP_BUFFERS:
        
             pthread_mutex_lock(&countSync_mutex);
             pthread_mutex_unlock(&currentBufp_mutex);
